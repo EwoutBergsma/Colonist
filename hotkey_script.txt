@@ -1,0 +1,299 @@
+javascript:(() => {
+const versionInfo = '🔥⌨️ colonist.io hotkeys :: v0.1 (by Ungar)';
+
+/* Initial set-up instructions:
+  0. (I suggest performing these steps after the initial game setup is completed.)
+  1. Open a DevTools window (F12). In the 'Sources' (Chrome) or 'Debugger' (Firefox) tab, open and 'pretty-print' dist/lobby-<hash>.min.js.
+  2. Place a breakpoint near the end of the UIGameManager.buildGame function's definition (around line 21965 in Chrome, or line 38330 in Firefox).
+  3. Refresh your colonist.io browser window. When the breakpoint you placed is hit, your window will pause its loading and your DevTools tab will enter debugging mode. Some lag is to be expected at this point.
+  4. Within the 'Console' tab of your DevTools window, copy and paste the contents of this file in its entirity.
+  5. Press the Enter key and wait for the version info to be logged to the console (this can take up to 30 seconds in large games). Again, some lag is to be expected while in debugging mode.
+  6. Unpause the debugger (there should be 'play' buttons on both your colonist.io window and DevTools windows to do so). Your colonist.io window should now resume loading as normal, and you can use the keybindings defined below (on lines 90+).
+
+  Notes:
+  - Your browser should save the breakpoint you placed in the pretty-printed lobby script. As such, step #2 only needs to be performed once. However, performing step 1 is still necessary (to load and enable that breakpoint).
+  - If you get a yellow 'disconnected' banner, just refresh your page and try again (or 'Reconnect' from the lobby).
+  - If the keybindings aren't working, try clicking on the game canvas. (This needs to be done after chatting, too.)
+  - Although pressing the spacebar does request a special build phase, doing so does not visually affect the special build flag.
+  - This script is a work-in-progress, and I'm open to feedback/suggestions (Discord: Silvyre#0561)
+
+  To-do:
+  - Allow number keys to select resources in non-trade circumstances, e.g. when discarding
+  - Allow number(?) keys to select choice of progress card
+  - Allow a key to cycle through progress card context menus
+    - Allow this key to cycle through (non-VP) development cards
+  - Allow 'k' key to play a Knight development card
+*/
+
+if (this instanceof Window || !r || !T) {
+  console.error('colonist.io hotkeys error: please follow instructions regarding DevTools usage.');
+  return;
+}
+
+const uiGameManager = this;
+const uiGameTradeInfoController = new r.UIGameTradeInfoController(this);
+const e_ = T.GameStateEnums.CardEnum;
+
+const { socketGameSend, tradeController, gameState } = uiGameManager;
+const { mapState, myColor } = gameState;
+const { tileCorners, tileEdges } = mapState.tileState;
+
+const getMyCorners = () => {
+  return tileCorners.reduce((acc, tc, idx) => {
+    if (tc.owner == myColor) {
+      acc.push(idx);
+    }
+    return acc;
+  }, []);
+};
+
+const getMyEdges = () => {
+  return tileEdges.reduce((acc, te, idx) => {
+    if (te.owner == myColor) {
+      acc.push(idx);
+    }
+    return acc;
+  }, []);
+};
+
+const addToOffer = resource => {
+  try { tradeController.clickedTrade(); }
+  catch {}
+
+  setTimeout(() => {
+    tradeController.leftExchangeController.clickedResourceCard(resource);
+  }, 100);
+}
+
+const addToWanted = resource => {
+  try { tradeController.clickedTrade(); }
+  catch {}
+
+  setTimeout(() => {
+    tradeController.rightExchangeController.exchangeView.cardContainer.addNewCardOfType(resource);
+  }, 100);
+}
+
+const offerWasAcceptedByMe = offer => {  
+  return uiGameTradeInfoController.tradeInfoContainer?.children?.some(c => {
+    const playerIcon = c?.leftProposal?.children[2];
+
+    const acceptedOfferFound = playerIcon?.children[1]?._texture?.textureCacheIds?.includes('icon_check');
+
+    return acceptedOfferFound && c?.offer && offer?.id == c?.offer?.id && playerIcon?.playerState?.playerColorId == myColor;
+  });
+}
+
+const remainingOffersAreUncounterable = idx => {
+  const remainingOffers = uiGameTradeInfoController.offers.slice(idx + 1);
+  
+  return !remainingOffers.some(offer => {
+    return !offer.isCounterOffer;
+  });
+}
+
+document.onkeypress = () => {
+  if (event.target.nodeName == 'INPUT') {
+    return;
+  }
+
+  switch(event.key) {
+    case 'r': /* build road at spot of choice */
+      socketGameSend.buildRoad();
+    break;
+    case 's': /* build settlement at spot of choice */
+      socketGameSend.buildSettlement();
+    break;
+    case 'c': /* build city upon settlement of choice */
+      socketGameSend.buildCity();
+    break;
+    case 'C': /* build city upon randomly-chosen settlement */
+      socketGameSend.buildCity();
+      getMyCorners().forEach(i => socketGameSend.confirmBuildCity(i));
+    break;
+    case 'i': /* buy development card or improve progress tracks */
+      try { socketGameSend.buyDevCard(); }
+      catch {}
+      
+      [0, 1, 2].forEach(i => socketGameSend.confirmCityUpgrade(i));
+    break;
+    case 'w': /* build city wall upon city of choice */
+      socketGameSend.buildCityWall();
+    break;
+    case 'W': /* build city wall upon randomly-chosen city */
+      socketGameSend.buildCityWall();
+      getMyCorners().forEach(i => socketGameSend.confirmBuildCityWall(i));
+    break;
+    case 'o': /* build ship at spot of choice */
+      socketGameSend.buildShip();
+    break;
+    case 'p': /* reposition ship of choice */
+      socketGameSend.moveShip();
+    break;
+    case 'P': /* reposition randomly-chosen ship */
+      socketGameSend.moveShip();
+      getMyEdges().forEach(i => socketGameSend.selectedShipToMove(i));
+    break;
+    case 'k': /* build knight at spot of choice */
+      socketGameSend.placeKnight();
+    break;
+    case 'f': /* 'feed' (activate) your knight of choice */
+      socketGameSend.activateKnight();
+    break;
+    case 'F': /* 'feed' (activate) randomly-chosen knight */
+      socketGameSend.activateKnight();
+      getMyCorners().forEach(i => socketGameSend.confirmActivateKnight(i));
+    break;
+    case 'u': /* upgrade your choice of knight */
+      socketGameSend.upgradeKnight();
+    break;
+    case 'U': /* upgrade randomly-chosen knight */
+      socketGameSend.upgradeKnight();
+      getMyCorners().forEach(i => socketGameSend.confirmUpgradeKnight(i));
+    break;
+    case 'a': /* act with your choice of knight */
+      socketGameSend.takeKnightAction();
+    break;
+    case 'A': /* act with randomly-chosen knight */
+      socketGameSend.takeKnightAction();
+      getMyCorners().forEach(i => socketGameSend.confirmSelectKnightToTakeAction(i));
+    break;
+    case ' ': /* (spacebar) request special build phase */
+      socketGameSend.requestSpecialBuildPhase();
+    break;
+    case '1': /* add lumber to left side of trade window */
+      addToOffer(e_.Lumber);
+    break;
+    case '!': /* add lumber to right side of trade window */
+      addToWanted(e_.Lumber);
+    break;
+    case '2': /* add brick to left side of trade window */
+      addToOffer(e_.Brick);
+    break;
+    case '@': /* add brick to right side of trade window */
+      addToWanted(e_.Brick);
+    break;
+    case '3': /* add wool to left side of trade window */
+      addToOffer(e_.Wool);
+    break;
+    case '#': /* add wool to right side of trade window */
+      addToWanted(e_.Wool);
+    break;
+    case '4': /* add grain to left side of trade window */
+      addToOffer(e_.Grain);
+    break;
+    case '$': /* add grain to right side of trade window */
+      addToWanted(e_.Grain);
+    break;
+    case '5': /* add ore to left side of trade window */
+      addToOffer(e_.Ore);
+    break;
+    case '%': /* add ore to right side of trade window */
+      addToWanted(e_.Ore);
+    break;
+    case '6': /* add cloth to left side of trade window */
+      addToOffer(e_.Cloth);
+    break;
+    case '^': /* add cloth to right side of trade window */
+      addToWanted(e_.Cloth);
+    break;
+    case '7': /* add coin to left side of trade window */
+      addToOffer(e_.Coin);
+    break;
+    case '&': /* add coin to right side of trade window */
+      addToWanted(e_.Coin);
+    break;
+    case '8': /* add paper to left side of trade window */
+      addToOffer(e_.Paper);
+    break;
+    case '*': /* add paper to right side of trade window */
+      addToWanted(e_.Paper);
+    break;
+    case ':': /* submit your trade offer */
+      tradeController.clickedActionButton();
+    break;
+    case '=': /* take first (top-leftmost) accepted outgoing trade offer */
+      let offerToTake, tradingWith;
+
+      uiGameTradeInfoController.tradeInfoContainer?.children?.some(c => {
+        const playerIcon = c?.creatorProposal?.children[4]?.children[1];
+
+        const acceptedOfferFound = playerIcon?.children[1]?._texture?.textureCacheIds?.includes('icon_check');
+
+        if (acceptedOfferFound) {
+          offerToTake = c.offer;
+          tradingWith = playerIcon.playerState.playerColorId;
+        }
+
+        return acceptedOfferFound;
+      });
+
+      if (offerToTake) {
+        socketGameSend.takeAcceptedOffer(offerToTake.id, tradingWith);
+      }
+    break;
+    case '[': /* accept first unaccepted incoming trade offer */
+      uiGameTradeInfoController.offers.some(({ offer }) => {
+        if (!offer.isCounterOffer && !offerWasAcceptedByMe(offer)) {
+          socketGameSend.acceptedOffer(offer.id);
+          offer.updateResponse(myColor, 1);
+          return true;
+        }
+      });
+    break;
+    case ']': /* reject first unaccepted incoming trade offer */
+      uiGameTradeInfoController.offers.some(({ offer }) => {
+        if (!offer.isCounterOffer && !offerWasAcceptedByMe(offer)) {
+          socketGameSend.rejectedOffer(offer.id);
+          return true;
+        }
+      });
+    break;
+    case '{': /* start counter-offer on last/non-accepted incoming trade offer */
+      uiGameTradeInfoController.offers.some(({ offer, idx }) => {
+        if (
+          !offer.isCounterOffer && (!offerWasAcceptedByMe(offer) || remainingOffersAreUncounterable(idx))
+        ) {
+          tradeController.editOffer(offer);
+          return true;
+        }
+      });
+    break;
+    case '/': /* reset trade window */
+      tradeController.resetTradeWindow();
+    break;
+    case ',': /* reset left side of trade window */
+      tradeController.leftExchangeController.updatePlayerCards();
+    break;
+    case '.': /* reset right side of trade window */
+      tradeController.rightExchangeController.updateAndShowUI();
+    break;
+    case '`': /* cancels current action, closes trade window, dismisses pop-ups */
+      try { socketGameSend.cancelAction(); }
+      catch {}
+
+      try { tradeController.closeTradeUI(); }
+      catch {}
+
+      try { document.querySelector('.popup .btn_general_check')?.click(); }
+      catch {}
+    break;
+    case 'd': /* roll the dice */
+      socketGameSend.clickedDice();
+    break;
+    case '\\': /* end your turn and/or reject all trade offers (the backslash key only needs to be single-clicked) */
+      try {
+        uiGameTradeInfoController.offers.forEach(({ offer }) => {
+          socketGameSend.rejectedOffer(offer.id);
+        });
+        socketGameSend.cancelAction();
+        tradeController.closeTradeUI();
+      } catch {}
+
+      socketGameSend.clickedPassTurn();
+    break;
+  }
+};
+
+console.log(versionInfo);
+})();
